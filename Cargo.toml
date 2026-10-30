@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/essentia-similarity-core",
+    "crates/essentia-feature-store",
+    "apps/essentia-similarity-shadow",
+]

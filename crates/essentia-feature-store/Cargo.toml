@@ -1,0 +1,13 @@
+[package]
+name = "essentia-feature-store"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+description = "Read-only Essentia classifier SQLite v3 feature accessor"
+
+[dependencies]
+anyhow = "1.0"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
