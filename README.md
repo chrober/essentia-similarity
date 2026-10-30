@@ -10,7 +10,7 @@ Host-independent Rust research engine for General song similarity from offline E
 | `essentia-feature-store` | Strict read-only SQLite v3 `feature_models` and `feature_tracks` decoding, exact opaque `feature_tracks.track_file` identities, fingerprint/class and Essentia reference-validation checks. **No player-specific identity resolution.** |
 | `essentia-similarity-shadow` | Standalone local research CLI; compares complete already-admitted candidate lists (2–50), emits **aggregate-only** ranking differences, never changes a queue or playlist. |
 
-The code was extracted from [`chrober/bliss-mood-poc`](https://github.com/chrober/bliss-mood-poc), research branch `feat/general-pairwise-similarity-research` (30 October 2026). The scanner and WP1/WP2/WP3 quality research remain there. Extraction removed the relative Rust `#[path]` source include and player-specific fields from the core. The feature store consumes the **actual scanner SQLite v3 schema** and does not import or reanalyse audio. The original research implementation had passing Linux/Windows CI; this repo has its own independent CI.
+The code was extracted from [`chrober/bliss-mood-poc`](https://github.com/chrober/bliss-mood-poc), research branch `feat/general-pairwise-similarity-research` (30 October 2026). The **canonical scanner and C++ worker code** now live in [`chrober/essentia-analyser`](https://github.com/chrober/essentia-analyser) (original scanner source extracted, [PR #1 merged](https://github.com/chrober/essentia-analyser/pull/1)). The original research and WP1/WP2/WP3 quality evaluations remain in `bliss-mood-poc`. Extraction removed the relative Rust `#[path]` source include and player-specific fields from the core. The feature store consumes the **actual scanner SQLite v3 schema** and does not import or reanalyse audio. The original research implementation had passing Linux/Windows CI; this repo has its own independent CI.
 
 ```sh
 cargo test --workspace --all-targets
@@ -28,7 +28,8 @@ Current heads are generic SQLite v3 **Genre87 and Mood56**. The **Embedding1280*
 
 ## Other repositories
 
-- [`chrober/bliss-mood-poc`](https://github.com/chrober/bliss-mood-poc): audio feature scanner and independent research/evaluation. Owns the original offline storage schema.
+- [`chrober/essentia-analyser`](https://github.com/chrober/essentia-analyser): **canonical offline scanner**, original native Essentia C++ worker, ONNX/FFmpeg analysis, writes versioned SQLite v3 features.
+- [`chrober/bliss-mood-poc`](https://github.com/chrober/bliss-mood-poc): **permanent research laboratory**, original historical scanner source for reproducibility, WP1/WP2/WP3 and metric evaluation.
 - [`chrober/bliss-guidance-essentia`](https://github.com/chrober/bliss-guidance-essentia): future host-specific **native SPI v2 adapter**, not present here.
 - [`chrober/lms-guidance-essentia`](https://github.com/chrober/lms-guidance-essentia): future installable Lyrion plugin, not present here.
 
