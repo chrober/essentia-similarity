@@ -3,7 +3,10 @@
 use anyhow::{bail, Context, Result};
 use rusqlite::{params, Connection, OpenFlags, OptionalExtension};
 use serde::Serialize;
-use std::{collections::{BTreeMap, BTreeSet}, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 const MAX_TRACKS: usize = 256;
 
@@ -56,14 +59,23 @@ pub fn inspect(
     if track_files.is_empty() || track_files.len() > MAX_TRACKS {
         bail!("Inspect between 1 and {MAX_TRACKS} exact sidecar track keys per request");
     }
-    if track_files.iter().any(|key| key.is_empty() || key.contains('\0')) {
+    if track_files
+        .iter()
+        .any(|key| key.is_empty() || key.contains('\0'))
+    {
         bail!("Invalid exact sidecar track key");
     }
-    let models = requested_models.split(',')
-        .map(str::trim).collect::<Vec<_>>();
+    let models = requested_models
+        .split(',')
+        .map(str::trim)
+        .collect::<Vec<_>>();
     let distinct = models.iter().copied().collect::<BTreeSet<_>>();
-    if models.is_empty() || models.len() > 2 || distinct.len() != models.len()
-        || models.iter().any(|id| !matches!(*id, "moodtheme" | "genre"))
+    if models.is_empty()
+        || models.len() > 2
+        || distinct.len() != models.len()
+        || models
+            .iter()
+            .any(|id| !matches!(*id, "moodtheme" | "genre"))
     {
         bail!("--models must specify unique moodtheme and/or genre");
     }
@@ -71,9 +83,16 @@ pub fn inspect(
     // SQLite OPEN_READ_ONLY deliberately rejects a missing file rather than
     // accidentally creating an empty sidecar.
     let conn = Connection::open_with_flags(database, OpenFlags::SQLITE_OPEN_READ_ONLY)
-        .with_context(|| format!("Cannot open feature sidecar read-only: {}", database.display()))?;
+        .with_context(|| {
+            format!(
+                "Cannot open feature sidecar read-only: {}",
+                database.display()
+            )
+        })?;
     let version: i64 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
-    if version != 3 { bail!("Feature lookup requires schema v3; found v{version}"); }
+    if version != 3 {
+        bail!("Feature lookup requires schema v3; found v{version}");
+    }
     inspect_connection(&conn, track_files, &models, include_experimental)
 }
 
@@ -99,38 +118,48 @@ fn inspect_connection(
                 t.scores_f32_le
          FROM feature_tracks t
          JOIN feature_models m ON m.model_key = t.model_key
-         WHERE t.track_file=?1 AND t.model_id=?2"
+         WHERE t.track_file=?1 AND t.model_id=?2",
     )?;
     let mut result = Vec::with_capacity(track_files.len());
     for key in track_files {
         let mut heads = BTreeMap::new();
         for model_id in models {
-            let found = statement.query_row(params![key, model_id], |row| {
-                Ok(StoredHeadRow {
-                    capability: row.get(0)?,
-                    model_key: row.get(1)?,
-                    preprocessing_version: row.get(2)?,
-                    aggregation: row.get(3)?,
-                    classes_json: row.get(4)?,
-                    validated: row.get(5)?,
-                    bytes: row.get(6)?,
+            let found = statement
+                .query_row(params![key, model_id], |row| {
+                    Ok(StoredHeadRow {
+                        capability: row.get(0)?,
+                        model_key: row.get(1)?,
+                        preprocessing_version: row.get(2)?,
+                        aggregation: row.get(3)?,
+                        classes_json: row.get(4)?,
+                        validated: row.get(5)?,
+                        bytes: row.get(6)?,
+                    })
                 })
-            }).optional()?;
+                .optional()?;
             let head = match found {
                 None => ModelLookup::status("missing"),
                 Some(stored) => decode_head(model_id, stored, include_experimental),
             };
             heads.insert((*model_id).to_owned(), head);
         }
-        result.push(TrackFeatureLookup { track_file: key.clone(), models: heads });
+        result.push(TrackFeatureLookup {
+            track_file: key.clone(),
+            models: heads,
+        });
     }
     Ok(result)
 }
 
 fn decode_head(id: &str, stored: StoredHeadRow, include_experimental: bool) -> ModelLookup {
     let StoredHeadRow {
-        capability, model_key, preprocessing_version, aggregation,
-        classes_json, validated, bytes,
+        capability,
+        model_key,
+        preprocessing_version,
+        aggregation,
+        classes_json,
+        validated,
+        bytes,
     } = stored;
     let (expected_capability, expected_count) = match id {
         "moodtheme" => ("mood_theme", 56),
@@ -143,9 +172,12 @@ fn decode_head(id: &str, stored: StoredHeadRow, include_experimental: bool) -> M
             && labels.iter().all(|v| !v.is_empty())
             && labels.iter().collect::<BTreeSet<_>>().len() == labels.len()
     });
-    if capability != expected_capability || model_key.is_empty()
-        || preprocessing_version.is_empty() || aggregation.is_empty()
-        || !matches!(validated, 0 | 1) || !valid_labels
+    if capability != expected_capability
+        || model_key.is_empty()
+        || preprocessing_version.is_empty()
+        || aggregation.is_empty()
+        || !matches!(validated, 0 | 1)
+        || !valid_labels
         || bytes.len() != expected_count * 4
     {
         return ModelLookup::status("invalid");
@@ -161,9 +193,13 @@ fn decode_head(id: &str, stored: StoredHeadRow, include_experimental: bool) -> M
     let validated = validated == 1;
     let visible = validated || include_experimental;
     ModelLookup {
-        status: if validated { "validated" } else if include_experimental {
+        status: if validated {
+            "validated"
+        } else if include_experimental {
             "experimental"
-        } else { "unvalidated" },
+        } else {
+            "unvalidated"
+        },
         model_key: Some(model_key),
         preprocessing_version: Some(preprocessing_version),
         aggregation: Some(aggregation),
@@ -191,20 +227,34 @@ mod tests {
                 capability TEXT NOT NULL, model_key TEXT NOT NULL,
                 scores_f32_le BLOB NOT NULL,
                 PRIMARY KEY(track_file, model_id)
-             );"
-        ).unwrap();
+             );",
+        )
+        .unwrap();
         for (id, capability, n) in [("moodtheme", "mood_theme", 56), ("genre", "genre", 87)] {
             let fingerprint = format!("model-{id}");
             let labels = (0..n).map(|x| format!("label{x:03}")).collect::<Vec<_>>();
             let bytes: Vec<u8> = (0..n).flat_map(|_| 0.5_f32.to_le_bytes()).collect();
             conn.execute(
                 "INSERT INTO feature_models VALUES(?1,?2,?3,?4,0)",
-                params![fingerprint, "preprocess-v1", "mean-patch", serde_json::to_string(&labels).unwrap()]
-            ).unwrap();
+                params![
+                    fingerprint,
+                    "preprocess-v1",
+                    "mean-patch",
+                    serde_json::to_string(&labels).unwrap()
+                ],
+            )
+            .unwrap();
             conn.execute(
                 "INSERT INTO feature_tracks VALUES(?1,?2,?3,?4,?5)",
-                params!["Artist/Album/track.flac", id, capability, fingerprint, bytes]
-            ).unwrap();
+                params![
+                    "Artist/Album/track.flac",
+                    id,
+                    capability,
+                    fingerprint,
+                    bytes
+                ],
+            )
+            .unwrap();
         }
         conn
     }
@@ -212,20 +262,34 @@ mod tests {
     #[test]
     fn exact_keys_and_unvalidated_default_are_safe() {
         let conn = fixture();
-        let keys = vec!["Artist/Album/track.flac".to_owned(), "Artist/Album/Track.flac".to_owned()];
+        let keys = vec![
+            "Artist/Album/track.flac".to_owned(),
+            "Artist/Album/Track.flac".to_owned(),
+        ];
         let result = inspect_connection(&conn, &keys, &["moodtheme", "genre"], false).unwrap();
         assert_eq!(result[0].models["moodtheme"].status, "unvalidated");
         assert!(result[0].models["genre"].scores_f32.is_none());
         assert_eq!(result[1].models["genre"].status, "missing");
         let experimental = inspect_connection(&conn, &keys, &["genre"], true).unwrap();
         assert_eq!(experimental[0].models["genre"].status, "experimental");
-        assert_eq!(experimental[0].models["genre"].scores_f32.as_ref().unwrap().len(), 87);
+        assert_eq!(
+            experimental[0].models["genre"]
+                .scores_f32
+                .as_ref()
+                .unwrap()
+                .len(),
+            87
+        );
     }
 
     #[test]
     fn malformed_one_head_is_neutral_without_affecting_another() {
         let conn = fixture();
-        conn.execute("UPDATE feature_tracks SET scores_f32_le=X'00000000' WHERE model_id='genre'", []).unwrap();
+        conn.execute(
+            "UPDATE feature_tracks SET scores_f32_le=X'00000000' WHERE model_id='genre'",
+            [],
+        )
+        .unwrap();
         let keys = vec!["Artist/Album/track.flac".to_owned()];
         let result = inspect_connection(&conn, &keys, &["moodtheme", "genre"], true).unwrap();
         assert_eq!(result[0].models["genre"].status, "invalid");
@@ -236,10 +300,17 @@ mod tests {
     #[test]
     fn validated_catalog_entry_exposes_scores_without_override() {
         let conn = fixture();
-        conn.execute("UPDATE feature_models SET validated_against_essentia=1 WHERE model_key='model-genre'", []).unwrap();
+        conn.execute(
+            "UPDATE feature_models SET validated_against_essentia=1 WHERE model_key='model-genre'",
+            [],
+        )
+        .unwrap();
         let keys = vec!["Artist/Album/track.flac".to_owned()];
         let result = inspect_connection(&conn, &keys, &["genre"], false).unwrap();
         assert_eq!(result[0].models["genre"].status, "validated");
-        assert_eq!(result[0].models["genre"].scores_f32.as_ref().unwrap().len(), 87);
+        assert_eq!(
+            result[0].models["genre"].scores_f32.as_ref().unwrap().len(),
+            87
+        );
     }
 }
