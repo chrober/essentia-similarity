@@ -138,7 +138,10 @@ pub fn compare_full_candidate_pool(
         max_shift = max_shift.max(index.abs_diff(c.baseline_rank));
     }
     let k = candidates.len().min(5);
-    let top5_overlap = reordered[..k].iter().filter(|c| c.baseline_rank < k).count();
+    let top5_overlap = reordered[..k]
+        .iter()
+        .filter(|c| c.baseline_rank < k)
+        .count();
     Ok(ShadowRankSummary {
         candidate_count: candidates.len(),
         changed_positions: changed,
